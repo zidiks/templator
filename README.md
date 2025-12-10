@@ -24,7 +24,7 @@ npm run start:dev
 ```
 
 ## Frontend (React)
-Простой экран для отображения списка шаблонов. Запросы идут на `/api/templates`.
+Простой экран для отображения списка шаблонов. Запросы идут на `/api/templates` (dev-сервер Vite проксирует их на `http://localhost:3000`), базовый URL можно переопределить через `VITE_API_BASE`.
 
 ### Запуск frontend
 ```bash

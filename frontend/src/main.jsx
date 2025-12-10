@@ -16,9 +16,14 @@ function App() {
   const [templates, setTemplates] = useState([]);
   const [error, setError] = useState('');
 
+  const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+
   useEffect(() => {
-    fetch('/api/templates')
-      .then((res) => res.json())
+    fetch(`${API_BASE}/templates`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Bad response');
+        return res.json();
+      })
       .then(setTemplates)
       .catch(() => setError('Не удалось загрузить список шаблонов.'));
   }, []);
