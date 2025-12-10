@@ -49,8 +49,20 @@ export class GenerationController {
     try {
       doc.render();
     } catch (error: any) {
-      this.logger.error(`Ошибка генерации: ${error?.message}`, error?.stack);
-      throw new BadRequestException('Не удалось собрать документ. Проверьте заполненные поля и шаблон.');
+      const nestedErrors = error?.properties?.errors as any[] | undefined;
+      const details = Array.isArray(nestedErrors)
+        ? nestedErrors
+            .map((err) => err?.properties?.explanation || err?.message)
+            .filter(Boolean)
+            .join('; ')
+        : '';
+
+      const message = details
+        ? `Не удалось собрать документ: ${details}. Убедитесь, что теги вида {{field}} не разорваны и корректно закрыты.`
+        : 'Не удалось собрать документ. Проверьте заполненные поля и шаблон.';
+
+      this.logger.error(`Ошибка генерации: ${error?.message}`, error?.stack || error);
+      throw new BadRequestException(message);
     }
 
     const buffer = doc.getZip().generate({ type: 'nodebuffer' });

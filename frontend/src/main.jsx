@@ -193,6 +193,10 @@ function Instructions({ onClose }) {
             Вставляйте переменные в тексте как <code>{'{{field_name}}'}</code>, где <em>field_name</em> совпадает с
             системным именем поля.
           </li>
+          <li>
+            Не разрывайте теги <code>{'{{'}</code> и <code>{'}}'}</code> пробелами, переносами строк или разным
+            форматированием внутри одного тега: каждая переменная должна быть цельной, например <code>{'{{client_name}}'}</code>.
+          </li>
           <li>Не используйте сложные макросы и встроенные объекты: они могут быть отброшены при генерации.</li>
           <li>
             Если требуется список или таблица, готовьте их в шаблоне заранее и помечайте ячейки переменными вместо
@@ -457,7 +461,15 @@ function App() {
         body: JSON.stringify(generationValues),
       });
 
-      if (!res.ok) throw new Error('generate_error');
+      let errorMessage = '';
+      try {
+        const errorPayload = await res.clone().json();
+        errorMessage = errorPayload?.message || '';
+      } catch (e) {
+        // ignore parse errors
+      }
+
+      if (!res.ok) throw new Error(errorMessage || 'generate_error');
 
       const blob = await res.blob();
       const disposition = res.headers.get('Content-Disposition');
@@ -481,7 +493,11 @@ function App() {
       closeGenerationForm();
     } catch (e) {
       console.error(e);
-      setError('Не удалось сгенерировать документ. Проверьте заполненные данные.');
+      setError(
+        e?.message === 'generate_error'
+          ? 'Не удалось сгенерировать документ. Проверьте заполненные данные и шаблон .docx.'
+          : e?.message || 'Не удалось сгенерировать документ. Проверьте заполненные данные.',
+      );
     } finally {
       setGenerating(false);
     }
