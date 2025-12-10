@@ -1,0 +1,9 @@
+{
+  "name": "templator",
+  "private": true,
+  "workspaces": ["backend", "frontend"],
+  "scripts": {
+    "start:backend": "npm run start --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend"
+  }
+}
