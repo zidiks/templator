@@ -6,6 +6,7 @@ import { TemplateDto } from './dto';
 export interface StoredTemplate extends TemplateDto {
   id: string;
   fileName?: string;
+  fileOriginalName?: string;
   fileType?: string;
   createdAt: string;
   updatedAt: string;
@@ -62,11 +63,12 @@ export class TemplatesService {
     return templates[index];
   }
 
-  attachFile(id: string, fileName: string, fileType: string) {
+  attachFile(id: string, fileName: string, fileOriginalName: string, fileType: string) {
     const templates = this.read();
     const index = templates.findIndex((t) => t.id === id);
     if (index === -1) throw new NotFoundException('Template not found');
     templates[index].fileName = fileName;
+    templates[index].fileOriginalName = fileOriginalName;
     templates[index].fileType = fileType;
     templates[index].updatedAt = new Date().toISOString();
     this.write(templates);
