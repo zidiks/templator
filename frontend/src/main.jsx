@@ -100,7 +100,7 @@ function FieldRow({ field, index, onChange, onRemove }) {
   );
 }
 
-function TemplateCard({ template, onFileUpload }) {
+function TemplateCard({ template, onFileUpload, onGenerate }) {
   const handleFileChange = (event) => {
     if (!event.target.files?.length) return;
     onFileUpload(template.id, event.target.files[0]);
@@ -112,6 +112,8 @@ function TemplateCard({ template, onFileUpload }) {
     [template.fields],
   );
 
+  const hasDocx = Boolean(template.fileOriginalName);
+
   return (
     <div style={{ border: '1px solid #ddd', padding: 12, borderRadius: 8, marginBottom: 12 }}>
       <h3 style={{ margin: '8px 0' }}>{template.name}</h3>
@@ -122,9 +124,8 @@ function TemplateCard({ template, onFileUpload }) {
       <p style={{ margin: '4px 0' }}>
         <strong>Поля:</strong> {fieldTitles}
       </p>
-      <p style={{ margin: '4px 0' }}>
-        <strong>Шаблон:</strong>{' '}
-        {template.fileOriginalName ? `${template.fileOriginalName} (${template.fileType || 'docx'})` : 'не загружен'}
+      <p style={{ margin: '4px 0', color: hasDocx ? '#2e7d32' : '#d32f2f' }}>
+        <strong>.docx:</strong> {hasDocx ? template.fileOriginalName : 'не прикреплен'}
       </p>
       <label
         style={{
@@ -141,6 +142,23 @@ function TemplateCard({ template, onFileUpload }) {
         Загрузить .docx
         <input type="file" accept=".docx" onChange={handleFileChange} style={{ display: 'none' }} />
       </label>
+
+      <button
+        type="button"
+        onClick={() => onGenerate(template)}
+        disabled={!hasDocx}
+        style={{
+          marginLeft: 12,
+          padding: '8px 12px',
+          borderRadius: 8,
+          border: '1px solid #1976d2',
+          background: hasDocx ? '#1976d2' : '#e0e0e0',
+          color: hasDocx ? 'white' : '#616161',
+          cursor: hasDocx ? 'pointer' : 'not-allowed',
+        }}
+      >
+        Заполнить и сгенерировать
+      </button>
     </div>
   );
 }
@@ -175,6 +193,10 @@ function Instructions({ onClose }) {
             Вставляйте переменные в тексте как <code>{'{{field_name}}'}</code>, где <em>field_name</em> совпадает с
             системным именем поля.
           </li>
+          <li>
+            Не разрывайте теги <code>{'{{'}</code> и <code>{'}}'}</code> пробелами, переносами строк или разным
+            форматированием внутри одного тега: каждая переменная должна быть цельной, например <code>{'{{client_name}}'}</code>.
+          </li>
           <li>Не используйте сложные макросы и встроенные объекты: они могут быть отброшены при генерации.</li>
           <li>
             Если требуется список или таблица, готовьте их в шаблоне заранее и помечайте ячейки переменными вместо
@@ -187,6 +209,89 @@ function Instructions({ onClose }) {
         <p style={{ marginTop: 12, color: '#455a64' }}>
           После загрузки шаблона можно заменить файл новой версией через кнопку «Загрузить .docx» в карточке шаблона.
         </p>
+      </div>
+    </div>
+  );
+}
+
+function GenerationModal({ template, fields, values, onChange, onSubmit, onClose, generating }) {
+  const renderInput = (field) => {
+    const commonProps = {
+      id: field.name,
+      name: field.name,
+      value: values[field.name] ?? '',
+      onChange: (e) => onChange(field.name, e.target.value),
+      placeholder: field.placeholder || '',
+      required: field.required,
+      style: { width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cfd8dc' },
+    };
+
+    if (field.type === 'textarea' || field.type === 'richtext') {
+      return <textarea rows={4} {...commonProps} />;
+    }
+
+    if (field.type === 'date') {
+      return <input type="date" {...commonProps} />;
+    }
+
+    if (field.type === 'number') {
+      return <input type="number" {...commonProps} />;
+    }
+
+    return <input type="text" {...commonProps} />;
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        zIndex: 20,
+      }}
+    >
+      <div style={{ background: '#fff', padding: 20, borderRadius: 12, width: '100%', maxWidth: 640 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div>
+            <p style={{ margin: 0, color: '#607d8b', fontSize: 12 }}>Генерация документа</p>
+            <h2 style={{ margin: '2px 0 0' }}>{template.name}</h2>
+          </div>
+          <button onClick={onClose} style={{ fontSize: 18, background: 'transparent', border: 'none', cursor: 'pointer' }}>
+            ×
+          </button>
+        </div>
+
+        <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {fields.map((field) => (
+            <label key={field.name} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontWeight: 600 }}>
+                {field.label}
+                {field.required && <span style={{ color: '#d32f2f' }}> *</span>}
+              </span>
+              {renderInput(field)}
+              {field.placeholder && (
+                <span style={{ color: '#78909c', fontSize: 12 }}>Подсказка: {field.placeholder}</span>
+              )}
+            </label>
+          ))}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+            <button type="button" onClick={onClose} style={{ padding: '8px 12px', borderRadius: 8 }}>
+              Отмена
+            </button>
+            <button
+              type="submit"
+              disabled={generating}
+              style={{ padding: '8px 12px', borderRadius: 8, background: '#1976d2', color: 'white' }}
+            >
+              {generating ? 'Генерация…' : 'Скачать .docx'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -212,6 +317,10 @@ function App() {
   });
   const [selectedFile, setSelectedFile] = useState(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [activeTemplate, setActiveTemplate] = useState(null);
+  const [generationFields, setGenerationFields] = useState([]);
+  const [generationValues, setGenerationValues] = useState({});
+  const [generating, setGenerating] = useState(false);
 
   const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
@@ -308,6 +417,89 @@ function App() {
     } catch (e) {
       console.error(e);
       setError('Файл не загружен. Убедитесь, что выбран .docx и повторите попытку.');
+    }
+  };
+
+  const openGenerationForm = async (template) => {
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/templates/${template.id}/form`);
+      if (!res.ok) throw new Error('form_error');
+      const data = await res.json();
+      const defaults = {};
+      data.fields.forEach((field) => {
+        defaults[field.name] = '';
+      });
+      setActiveTemplate(template);
+      setGenerationFields(data.fields);
+      setGenerationValues(defaults);
+    } catch (e) {
+      console.error(e);
+      setError('Не удалось загрузить форму для генерации. Попробуйте ещё раз.');
+    }
+  };
+
+  const closeGenerationForm = () => {
+    setActiveTemplate(null);
+    setGenerationFields([]);
+    setGenerationValues({});
+  };
+
+  const updateGenerationValue = (name, value) => {
+    setGenerationValues((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleGenerate = async (event) => {
+    event.preventDefault();
+    if (!activeTemplate) return;
+    setGenerating(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/templates/${activeTemplate.id}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(generationValues),
+      });
+
+      let errorMessage = '';
+      try {
+        const errorPayload = await res.clone().json();
+        errorMessage = errorPayload?.message || '';
+      } catch (e) {
+        // ignore parse errors
+      }
+
+      if (!res.ok) throw new Error(errorMessage || 'generate_error');
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition');
+      let filename = `${activeTemplate.name || 'document'}.docx`;
+      if (disposition) {
+        const match =
+          /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(disposition);
+        if (match) {
+          filename = decodeURIComponent(match[1] || match[2]);
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      closeGenerationForm();
+    } catch (e) {
+      console.error(e);
+      setError(
+        e?.message === 'generate_error'
+          ? 'Не удалось сгенерировать документ. Проверьте заполненные данные и шаблон .docx.'
+          : e?.message || 'Не удалось сгенерировать документ. Проверьте заполненные данные.',
+      );
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -414,11 +606,27 @@ function App() {
         <h2>Сохранённые шаблоны</h2>
         {templates.length === 0 && <p style={{ color: '#78909c' }}>Шаблонов пока нет</p>}
         {templates.map((t) => (
-          <TemplateCard key={t.id} template={t} onFileUpload={handleFileUpload} />
+          <TemplateCard
+            key={t.id}
+            template={t}
+            onFileUpload={handleFileUpload}
+            onGenerate={openGenerationForm}
+          />
         ))}
       </section>
 
       {showInstructions && <Instructions onClose={() => setShowInstructions(false)} />}
+      {activeTemplate && (
+        <GenerationModal
+          template={activeTemplate}
+          fields={generationFields}
+          values={generationValues}
+          onChange={updateGenerationValue}
+          onSubmit={handleGenerate}
+          onClose={closeGenerationForm}
+          generating={generating}
+        />
+      )}
     </div>
   );
 }
